@@ -88,14 +88,9 @@
 
     <div id="props">
         <strong>Selected feature properties</strong>
-        <form id="propsForm">
-            <label>busname <input id="p_busname" /></label>
-            <label>id <input id="p_id" /></label>
-            <label>hub_id <input id="p_hub" /></label>
-            <label>color_path <input id="p_color" type="text" placeholder="red or #ff0000" /></label>
-            <label>line_thik <input id="p_thick" type="number" min="1" /></label>
-            <label>service_type <input id="p_service" /></label>
-            <label>notes <textarea id="p_desc" rows="3"></textarea></label>
+        <form id="propsForm" onsubmit="return false;">
+            <!-- Dynamic properties fields inserted here -->
+            <div id="propsFields"></div>
             <button type="button" id="saveProps">Save properties</button>
             <button type="button" id="clearSelection">Clear selection</button>
             <button type="button" id="editPath">Edit path</button>
@@ -143,6 +138,47 @@
                 return { color: col, weight: weight, opacity: 0.85 };
             }
 
+            // DYNAMIC properties form population
+            function populatePropsForm(properties) {
+                const container = document.getElementById('propsFields');
+                container.innerHTML = ''; // Clear old inputs
+
+                for (const key in properties) {
+                    if (!properties.hasOwnProperty(key)) continue;
+                    const value = properties[key];
+
+                    const label = document.createElement('label');
+                    label.textContent = key;
+                    label.style.marginTop = '6px';
+
+                    let input;
+                    if (typeof value === 'string' && value.length > 40) {
+                        // long text - use textarea
+                        input = document.createElement('textarea');
+                        input.rows = 3;
+                        input.style.width = '100%';
+                        input.value = value;
+                    } else if (typeof value === 'number' || (!isNaN(value) && value !== null && value !== '')) {
+                        // treat as number if numeric string or number
+                        input = document.createElement('input');
+                        input.type = 'number';
+                        input.value = value;
+                        input.style.width = '100%';
+                    } else {
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = value;
+                        input.style.width = '100%';
+                    }
+
+                    input.id = `prop_${key}`;
+                    input.dataset.propKey = key;
+
+                    label.appendChild(input);
+                    container.appendChild(label);
+                }
+            }
+
             function setGeoJSON(j) {
                 geojsonData = j;
                 editableFG.clearLayers();
@@ -172,6 +208,7 @@
                     const el = document.createElement('div');
                     el.style.padding = '6px 4px';
                     el.style.borderBottom = '1px solid #eee';
+                    el.style.cursor = 'pointer';
                     el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
                 <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
                     el.onclick = () => {
@@ -195,31 +232,37 @@
                 selectedFeature = geojsonData && geojsonData.features[featureIndex];
                 if (selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: '4 6' });
                 if (selectedFeature && selectedFeature.properties) {
-                    document.getElementById('p_busname').value = selectedFeature.properties.busname || '';
-                    document.getElementById('p_id').value = selectedFeature.properties.id || '';
-                    document.getElementById('p_hub').value = selectedFeature.properties.hub_id || '';
-                    document.getElementById('p_color').value = selectedFeature.properties.color_path || selectedFeature.properties.color || '';
-                    document.getElementById('p_thick').value = selectedFeature.properties.line_thik || '';
-                    document.getElementById('p_service').value = selectedFeature.properties.service_type || '';
-                    document.getElementById('p_desc').value = selectedFeature.properties.desci || '';
+                    populatePropsForm(selectedFeature.properties);
+                } else {
+                    document.getElementById('propsFields').innerHTML = '';
                 }
             }
 
             document.getElementById('saveProps').addEventListener('click', () => {
                 if (!selectedFeature) { alert('Select a route first'); return; }
-                const p = selectedFeature.properties = selectedFeature.properties || {};
-                p.busname = document.getElementById('p_busname').value;
-                p.id = document.getElementById('p_id').value;
-                p.hub_id = document.getElementById('p_hub').value;
-                p.color_path = document.getElementById('p_color').value;
-                p.line_thik = document.getElementById('p_thick').value;
-                p.service_type = document.getElementById('p_service').value;
-                p.desci = document.getElementById('p_desc').value;
-                for (const [layer, idx] of layerToFeatureId.entries()) {
-                    if (geojsonData.features[idx] === selectedFeature) {
-                        layer.setStyle && layer.setStyle(styleForFeature(p));
+                const container = document.getElementById('propsFields');
+                const inputs = container.querySelectorAll('input, textarea');
+                const props = {};
+
+                inputs.forEach(input => {
+                    const key = input.dataset.propKey;
+                    let val = input.value;
+
+                    // Convert number inputs if possible
+                    if (input.type === 'number') {
+                        val = val === '' ? null : Number(val);
                     }
+
+                    props[key] = val;
+                });
+
+                selectedFeature.properties = props;
+
+                // Update style if color_path or line_thik changed
+                if (selectedLayer && selectedFeature.properties) {
+                    selectedLayer.setStyle && selectedLayer.setStyle(styleForFeature(selectedFeature.properties));
                 }
+
                 rebuildLayersList();
                 alert('Properties saved (in memory). Use "Download edited GeoJSON" to save to disk.');
             });
@@ -227,7 +270,7 @@
             document.getElementById('clearSelection').addEventListener('click', () => {
                 if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: null });
                 selectedLayer = null; selectedFeature = null;
-                document.getElementById('propsForm').reset();
+                document.getElementById('propsFields').innerHTML = '';
             });
 
             // Edit only selected path
