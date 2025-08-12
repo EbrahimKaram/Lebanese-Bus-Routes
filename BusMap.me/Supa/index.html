@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Lebanon Bus Routes — Supabase Realtime Editor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet Draw -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <style>
+    html,
+    body,
+    #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    #topbar {
+      position: absolute;
+      z-index: 1000;
+      left: 8px;
+      bottom: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, .2);
+      font-family: Arial
+    }
+
+    #props {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      z-index: 1000;
+      width: 320px;
+      max-height: 80vh;
+      overflow: auto;
+      background: rgba(255, 255, 255, .95);
+      padding: 8px;
+      border-radius: 6px;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, .2);
+      font-family: Arial
+    }
+
+    label {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px;
+      margin-top: 4px
+    }
+
+    button {
+      margin-top: 8px;
+      padding: 8px 10px;
+      cursor: pointer
+    }
+
+    .small {
+      font-size: 12px;
+      color: #333
+    }
+
+    .layerItem {
+      padding: 6px 4px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <div id="topbar">
+    <div style="display:flex; gap:6px; align-items:center;">
+      <input id="fileInput" type="file" accept=".json,.geojson" />
+      <button id="downloadBtn">Download edited GeoJSON</button>
+      <button id="zoomAll">Zoom to routes</button>
+    </div>
+  </div>
+
+  <div id="props">
+    <strong>Selected feature properties</strong>
+    <form id="propsForm" onsubmit="return false;">
+      <label>busname <input id="p_busname" /></label>
+      <label>id <input id="p_id" /></label>
+      <label>hub_id <input id="p_hub" /></label>
+      <label>color_path <input id="p_color" type="text" placeholder="red or #ff0000" /></label>
+      <label>line_thik <input id="p_thick" type="number" min="1" /></label>
+      <label>service_type <input id="p_service" /></label>
+      <label>notes <textarea id="p_desc" rows="3"></textarea></label>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" id="saveProps">Save props</button>
+        <button type="button" id="clearSelection">Clear</button>
+        <button type="button" id="editPath">Edit path</button>
+        <button type="button" id="savePath">Save path</button>
+        <button type="button" id="delRoute" style="background:#f66;color:#fff">Delete route</button>
+      </div>
+    </form>
+    <hr />
+    <div><strong>Layers</strong>
+      <div id="layersList"></div>
+    </div>
+    <hr />
+    <div class="small">Realtime via Supabase. Make sure SUPABASE_URL and SUPABASE_KEY below are filled.</div>
+  </div>
+
+  <script>
+    (async function () {
+      // ----- CONFIG: replace with your Supabase values -----
+      const SUPABASE_URL = 'https://oduvsltatxryjjdfiith.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kdXZzbHRhdHhyeWpqZGZpaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUyNDgsImV4cCI6MjA3MDU5MTI0OH0.KSwZ4Gy-hZD718SVNxezp0XGNP9QcF-40ke8SXAvoL0';
+      // ----------------------------------------------------
+
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        alert('Please fill SUPABASE_URL and SUPABASE_ANON_KEY in the HTML before using.');
+      }
+
+      const supabaseDB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // map setup
+      const map = L.map('map').setView([33.9, 35.5], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+
+      // FeatureGroup for layers we create from DB
+      const editableFG = new L.FeatureGroup().addTo(map);
+
+      // draw control — allow creating new polyline only
+      const drawControl = new L.Control.Draw({
+        edit: false,
+        draw: { polygon: false, rectangle: false, circle: false, marker: false, circlemarker: false, polyline: { shapeOptions: { color: '#3388ff' } } }
+      });
+      map.addControl(drawControl);
+
+      // in-memory map of DB id -> Leaflet layer and layer -> id
+      const idToLayer = new Map();
+      const layerToId = new Map();
+
+      // local cache of features (not the source of truth — supabase is), keyed by id
+      let localFeatures = new Map();
+
+      // pending set: when we perform an insert/update/delete, we add the id here so the realtime listener can ignore the immediate echo
+      const pending = new Set();
+
+      let selectedLayer = null; // currently selected Leaflet layer
+      let selectedFeatureId = null; // selected DB id
+      let selectedFeature = null; // feature object (GeoJSON feature)
+      let currentEditor = null;
+
+      function styleForFeature(props) {
+        const col = (props && (props.color_path || props.color)) || '#3388ff';
+        const weight = (props && parseInt(props.line_thik)) || 4;
+        return { color: col, weight: weight, opacity: 0.9 };
+      }
+
+      // ----- helpers to manage map layers from features -----
+      function addOrUpdateLayerFromFeature(feature) {
+        const id = feature.id || (feature.properties && feature.properties.id);
+        if (!id) return;
+        // geometry should be LineString for routes
+        const geom = feature.geometry;
+        if (!geom) return;
+        // convert GeoJSON coordinates [lng,lng] to Leaflet [lat,lng]
+        if (geom.type === 'LineString') {
+          const coords = geom.coordinates.map(c => [c[1], c[0]]);
+          if (idToLayer.has(id)) {
+            // update existing layer's latlngs and style
+            const l = idToLayer.get(id);
+            l.setLatLngs(coords);
+            l.setStyle && l.setStyle(styleForFeature(feature.properties || {}));
+          } else {
+            const l = L.polyline(coords, styleForFeature(feature.properties || {}));
+            editableFG.addLayer(l);
+            idToLayer.set(id, l);
+            layerToId.set(l, id);
+            l.on('click', () => selectLayer(l, id));
+          }
+          localFeatures.set(id, feature);
+        } else {
+          // handle other geometry types if needed
+          console.warn('Unsupported geometry type:', geom.type);
+        }
+      }
+
+      function removeLayerById(id) {
+        if (!idToLayer.has(id)) return;
+        const l = idToLayer.get(id);
+        editableFG.removeLayer(l);
+        layerToId.delete(l);
+        idToLayer.delete(id);
+        localFeatures.delete(id);
+        if (selectedFeatureId === id) {
+          clearSelection();
+        }
+      }
+
+      function rebuildLayersList() {
+        const dom = document.getElementById('layersList');
+        dom.innerHTML = '';
+        // show features sorted by name if exist
+        const arr = Array.from(localFeatures.values());
+        arr.sort((a, b) => {
+          const an = a.properties && a.properties.busname || '';
+          const bn = b.properties && b.properties.busname || '';
+          return an.localeCompare(bn);
+        });
+        arr.forEach(f => {
+          const id = f.id || (f.properties && f.properties.id);
+          const el = document.createElement('div');
+          el.className = 'layerItem';
+          el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('route')}</strong><div class="small">id: ${id}</div>`;
+          el.onclick = () => {
+            const layer = idToLayer.get(id);
+            if (layer) {
+              map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+              selectLayer(layer, id);
+            }
+          };
+          dom.appendChild(el);
+        });
+      }
+
+      function selectLayer(layer, id) {
+        if (selectedLayer) selectedLayer.setStyle && selectedLayer.setStyle({ dashArray: null });
+        selectedLayer = layer;
+        selectedFeatureId = id;
+        selectedFeature = localFeatures.get(id) || null;
+        if (selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: '4 6' });
+        // populate props
+        if (selectedFeature && selectedFeature.properties) {
+          document.getElementById('p_busname').value = selectedFeature.properties.busname || '';
+          document.getElementById('p_id').value = selectedFeature.properties.id || '';
+          document.getElementById('p_hub').value = selectedFeature.properties.hub_id || '';
+          document.getElementById('p_color').value = selectedFeature.properties.color_path || selectedFeature.properties.color || '';
+          document.getElementById('p_thick').value = selectedFeature.properties.line_thik || '';
+          document.getElementById('p_service').value = selectedFeature.properties.service_type || '';
+          document.getElementById('p_desc').value = selectedFeature.properties.desci || '';
+        }
+      }
+
+      function clearSelection() {
+        if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: null });
+        selectedLayer = null;
+        selectedFeatureId = null;
+        selectedFeature = null;
+        document.getElementById('propsForm').reset();
+      }
+
+      // ----- DB operations -----
+      async function fetchAllFeaturesFromDB() {
+        // load all rows from routes table
+        const { data, error } = await supabaseDB
+          .from('routes')
+          .select('id, feature')
+          .order('updated_at', { ascending: true });
+        if (error) {
+          console.error('fetch error', error);
+          return;
+        }
+        // clear existing
+        localFeatures.clear();
+        idToLayer.forEach((l, id) => {
+          editableFG.removeLayer(l);
+        });
+        idToLayer.clear();
+        layerToId.clear();
+
+        data.forEach(row => {
+          const feature = row.feature;
+          // ensure feature.id === row.id so we have stable ID
+          feature.id = row.id;
+          addOrUpdateLayerFromFeature(feature);
+        });
+        rebuildLayersList();
+      }
+
+      async function upsertFeatureToDB(feature) {
+        // require feature.id to be set; if not, insert row and Supabase will return id
+        const id = feature.id || null;
+        if (id) {
+          // update existing row
+          pending.add(id);
+          const { error } = await supabaseDB.from('routes').update({ feature }).eq('id', id);
+          if (error) console.error('update error', error);
+          // remove pending after a short delay (will also be removed when listener sees the payload)
+          setTimeout(() => pending.delete(id), 1500);
+        } else {
+          // insert new row
+          pending.add('inserting'); // sentinel to ignore immediate insert events if needed
+          const { data, error } = await supabaseDB.from('routes').insert([{ feature }]).select('id').single();
+          if (error) {
+            console.error('insert error', error);
+          } else if (data && data.id) {
+            // set id on feature and sync local mapping
+            feature.id = data.id;
+            pending.delete('inserting');
+            // write id back into DB feature row so future reads contain the id in the feature
+            pending.add(data.id);
+            await supabaseDB.from('routes').update({ feature }).eq('id', data.id);
+            setTimeout(() => pending.delete(data.id), 1500);
+          }
+        }
+      }
+
+      async function deleteFeatureFromDB(id) {
+        if (!id) return;
+        pending.add(id);
+        const { error } = await supabaseDB.from('routes').delete().eq('id', id);
+        if (error) console.error('delete error', error);
+        setTimeout(() => pending.delete(id), 1500);
+      }
+
+      // ----- Realtime subscription: listen for INSERT/UPDATE/DELETE -----
+      function setupRealtime() {
+        // subscribe to postgres_changes for routes table
+        supabaseDB.channel('public:routes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'routes' }, payload => {
+            const row = payload.new;
+            const id = row.id;
+            if (pending.has(id)) return; // ignore our own echoes
+            const feature = row.feature;
+            feature.id = id;
+            addOrUpdateLayerFromFeature(feature);
+            rebuildLayersList();
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'routes' }, payload => {
+            const row = payload.new;
+            const id = row.id;
+            if (pending.has(id)) return;
+            const feature = row.feature;
+            feature.id = id;
+            addOrUpdateLayerFromFeature(feature);
+            rebuildLayersList();
+          })
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'routes' }, payload => {
+            const row = payload.old;
+            const id = row.id;
+            if (pending.has(id)) return;
+            removeLayerById(id);
+            rebuildLayersList();
+          })
+          .subscribe((status, err) => {
+            // This callback is for handling the subscription status
+            if (status === 'SUBSCRIBED') {
+              console.log('Realtime subscription successful!');
+            } else if (status === 'TIMED_OUT') {
+              console.error('Realtime subscription timed out.', err);
+            } else if (status === 'CLOSED') {
+              console.log('Realtime subscription closed.');
+            } else if (status === 'CHANNEL_ERROR') {
+              console.error('Realtime channel error:', err);
+            }
+          });
+      }
+
+      // ----- wire map draw events (create new route) -----
+      map.on(L.Draw.Event.CREATED, async function (e) {
+        const layer = e.layer;
+        editableFG.addLayer(layer);
+
+        // create feature from layer
+        const gj = layer.toGeoJSON();
+        gj.properties = gj.properties || {};
+        // optional: add default props and id placeholder (supabase assigned id will be used)
+        gj.properties.busname = gj.properties.busname || 'new route';
+        gj.properties.id = gj.properties.id || null; // will be set by DB
+        // upsert to DB (insert)
+        await upsertFeatureToDB(gj);
+        // if ID assigned quickly and layer not yet mapped, we will pick up the realtime event and map it
+        rebuildLayersList();
+
+        // attach click selection
+        layer.on('click', () => {
+          const id = gj.id || gj.properties && gj.properties.id;
+          // if id hasn't been assigned yet, try to guess by matching geometry
+          if (id && idToLayer.has(id)) selectLayer(layer, id);
+          else {
+            // best-effort: add temporary mapping so user can select the new layer
+            const tempId = gj.id || ('temp-' + Date.now());
+            gj.id = tempId;
+            localFeatures.set(tempId, gj);
+            idToLayer.set(tempId, layer);
+            layerToId.set(layer, tempId);
+            selectLayer(layer, tempId);
+          }
+        });
+      });
+
+      // ----- Save properties button (writes properties only) -----
+      document.getElementById('saveProps').addEventListener('click', async () => {
+        if (!selectedFeatureId) { alert('Select a route first'); return; }
+        const props = selectedFeature.properties || {};
+        props.busname = document.getElementById('p_busname').value;
+        props.id = document.getElementById('p_id').value;
+        props.hub_id = document.getElementById('p_hub').value;
+        props.color_path = document.getElementById('p_color').value;
+        props.line_thik = document.getElementById('p_thick').value;
+        props.service_type = document.getElementById('p_service').value;
+        props.desci = document.getElementById('p_desc').value;
+
+        // update local feature
+        const feat = localFeatures.get(selectedFeatureId) || { type: 'Feature', properties: {}, geometry: null };
+        feat.properties = props;
+
+        // send update to DB
+        feat.id = selectedFeatureId;
+        await upsertFeatureToDB(feat);
+        // update map style locally immediately
+        addOrUpdateLayerFromFeature(feat);
+        rebuildLayersList();
+        alert('Saved properties (pushed to Supabase).');
+      });
+
+      document.getElementById('clearSelection').addEventListener('click', clearSelection);
+
+      // Edit only selected path
+      document.getElementById('editPath').addEventListener('click', () => {
+        if (!selectedLayer) { alert('Select a route first'); return; }
+        if (currentEditor) { alert('Already editing'); return; }
+        currentEditor = new L.Edit.Poly(selectedLayer, { edit: true });
+        currentEditor.enable();
+      });
+
+      document.getElementById('savePath').addEventListener('click', async () => {
+        if (!selectedLayer || !currentEditor) return;
+        currentEditor.disable();
+        currentEditor = null;
+        const idx = layerToId.get(selectedLayer);
+        // serialize geometry into GeoJSON and update DB
+        const gj = selectedLayer.toGeoJSON();
+        gj.properties = (localFeatures.get(idx) && localFeatures.get(idx).properties) || (gj.properties || {});
+        // set id to DB id if we have one
+        if (idx && idx.toString().startsWith('temp-')) {
+          // temp id — nothing in DB yet; try to insert
+          await upsertFeatureToDB(gj);
+        } else {
+          // update existing DB row
+          gj.id = idx;
+          await upsertFeatureToDB(gj);
+        }
+        alert('Path saved and pushed to Supabase.');
+      });
+
+      // delete route
+      document.getElementById('delRoute').addEventListener('click', async () => {
+        if (!selectedFeatureId) { alert('Select a route first'); return; }
+        if (!confirm('Delete selected route?')) return;
+        await deleteFeatureFromDB(selectedFeatureId);
+        // local remove will be handled when realtime event arrives; do immediate local remove for UX:
+        removeLayerById(selectedFeatureId);
+        rebuildLayersList();
+      });
+
+      // download all as geojson
+      document.getElementById('downloadBtn').addEventListener('click', () => {
+        const features = Array.from(localFeatures.values()).map(f => {
+          // ensure geometry present
+          return f;
+        });
+        const fc = { type: 'FeatureCollection', features };
+        const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'routes_export.geojson';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      });
+
+      document.getElementById('zoomAll').addEventListener('click', () => {
+        const b = editableFG.getBounds();
+        if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+        else alert('No features');
+      });
+
+      // file upload fallback: load a geojson and upsert each feature
+      document.getElementById('fileInput').addEventListener('change', async (ev) => {
+        const f = ev.target.files[0];
+        if (!f) return;
+        const text = await f.text();
+        try {
+          const j = JSON.parse(text);
+          if (j.type === 'FeatureCollection' && Array.isArray(j.features)) {
+            for (const feat of j.features) {
+              // insert each feature as separate row
+              await upsertFeatureToDB(feat);
+            }
+            alert('Uploaded file features to Supabase (may take a moment to appear via realtime).');
+          } else {
+            alert('Invalid geojson');
+          }
+        } catch (err) { alert('Invalid JSON'); }
+      });
+
+      // Initialize: load existing features then subscribe
+      await fetchAllFeaturesFromDB();
+      setupRealtime();
+
+      // small UX: click map background clears selection
+      map.on('click', function () { clearSelection(); });
+
+    })();
+  </script>
+</body>
+
+</html>
