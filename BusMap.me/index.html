@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Lebanon Bus Routes — Viewer & Editor</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Draw -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #topbar {
+            position: absolute;
+            z-index: 1000;
+            left: 8px;
+            bottom: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px;
+            border-radius: 6px;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+            font-family: Arial, sans-serif;
+        }
+
+        #props {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            z-index: 1000;
+            width: 300px;
+            max-height: 80vh;
+            overflow: auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px;
+            border-radius: 6px;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+            font-family: Arial, sans-serif;
+        }
+
+        label {
+            display: block;
+            margin-top: 6px;
+            font-size: 13px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px;
+            margin-top: 4px;
+        }
+
+        button {
+            margin-top: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+
+        .small {
+            font-size: 12px;
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div id="topbar">
+        <div style="display:flex; gap:6px; align-items:center;">
+            <input id="fileInput" type="file" accept=".json,.geojson" />
+            <button id="downloadBtn">Download edited GeoJSON</button>
+            <button id="zoomAll">Zoom to routes</button>
+        </div>
+
+    </div>
+
+    <div id="props">
+        <strong>Selected feature properties</strong>
+        <form id="propsForm">
+            <label>busname <input id="p_busname" /></label>
+            <label>id <input id="p_id" /></label>
+            <label>hub_id <input id="p_hub" /></label>
+            <label>color_path <input id="p_color" type="text" placeholder="red or #ff0000" /></label>
+            <label>line_thik <input id="p_thick" type="number" min="1" /></label>
+            <label>service_type <input id="p_service" /></label>
+            <label>notes <textarea id="p_desc" rows="3"></textarea></label>
+            <button type="button" id="saveProps">Save properties</button>
+            <button type="button" id="clearSelection">Clear selection</button>
+        </form>
+        <hr />
+        <div>
+            <strong>Layers</strong>
+            <div id="layersList"></div>
+        </div>
+    </div>
+
+    <script>
+        (async function () {
+            // create map
+            const map = L.map('map').setView([33.9, 35.5], 8);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18, attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            // FeatureGroup to hold editable layers
+            const editableFG = new L.FeatureGroup().addTo(map);
+
+            // draw control
+            const drawControl = new L.Control.Draw({
+                edit: { featureGroup: editableFG },
+                draw: {
+                    polygon: false,
+                    rectangle: false,
+                    circle: false,
+                    marker: false,
+                    circlemarker: false,
+                    polyline: { shapeOptions: { color: '#3388ff' } }
+                }
+            });
+            map.addControl(drawControl);
+
+            // in-memory GeoJSON
+            let geojsonData = null;
+
+            // currently selected layer + feature index
+            let selectedLayer = null;
+            let selectedFeature = null;
+            let layerToFeatureId = new Map(); // map L.Layer -> feature index in geojsonData.features
+
+            // style function using properties
+            function styleForFeature(props) {
+                let col = props && (props.color_path || props.color || '#3388ff');
+                let weight = (props && parseInt(props.line_thik)) || 4;
+                return { color: col, weight: weight, opacity: 0.85 };
+            }
+
+            // load geojson either by fetch('BusRoutes.json') or from file input
+            async function loadGeoJSONFromURL(url = 'BusRoutes.json') {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('fetch failed');
+                    const j = await res.json();
+                    setGeoJSON(j);
+                } catch (e) {
+                    console.warn('auto fetch failed, please use file input (CORS/file://).', e);
+                }
+            }
+
+            // set geojson into map
+            function setGeoJSON(j) {
+                geojsonData = j;
+                editableFG.clearLayers();
+                layerToFeatureId.clear();
+                if (!j || !j.features) return;
+
+                j.features.forEach((feat, idx) => {
+                    if (feat.geometry && feat.geometry.type === "LineString") {
+                        const coords = feat.geometry.coordinates.map(c => [c[1], c[0]]); // reverse to lat,lng
+                        const layer = L.polyline(coords, styleForFeature(feat.properties || {}));
+                        editableFG.addLayer(layer);
+                        layerToFeatureId.set(layer, idx);
+                        layer.on('click', () => selectLayer(layer, idx));
+                    }
+                });
+
+                rebuildLayersList();
+                const bounds = editableFG.getBounds();
+                if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+            }
+
+            // rebuild layers list in sidebar
+            function rebuildLayersList() {
+                const dom = document.getElementById('layersList');
+                dom.innerHTML = '';
+                if (!geojsonData) return;
+                geojsonData.features.forEach((f, i) => {
+                    const el = document.createElement('div');
+                    el.style.padding = '6px 4px';
+                    el.style.borderBottom = '1px solid #eee';
+                    el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
+        <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
+                    el.onclick = () => {
+                        // find an associated layer and open popup / select
+                        for (const [layer, idx] of layerToFeatureId.entries()) {
+                            if (idx === i) { map.fitBounds(layer.getBounds ? layer.getBounds() : L.latLngBounds(layer.getLatLngs())); selectLayer(layer, idx); break; }
+                        }
+                    };
+                    dom.appendChild(el);
+                });
+            }
+
+            // select a layer
+            function selectLayer(layer, featureIndex) {
+                if (selectedLayer) {
+                    // reset previous style
+                    selectedLayer.setStyle && selectedLayer.setStyle({ dashArray: null });
+                }
+                selectedLayer = layer;
+                selectedFeature = geojsonData && geojsonData.features[featureIndex];
+                if (selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: '4 6' });
+                // populate properties form
+                if (selectedFeature && selectedFeature.properties) {
+                    document.getElementById('p_busname').value = selectedFeature.properties.busname || '';
+                    document.getElementById('p_id').value = selectedFeature.properties.id || '';
+                    document.getElementById('p_hub').value = selectedFeature.properties.hub_id || '';
+                    document.getElementById('p_color').value = selectedFeature.properties.color_path || selectedFeature.properties.color || '';
+                    document.getElementById('p_thick').value = selectedFeature.properties.line_thik || '';
+                    document.getElementById('p_service').value = selectedFeature.properties.service_type || '';
+                    document.getElementById('p_desc').value = selectedFeature.properties.desci || '';
+                }
+            }
+
+            // save properties back into geojson and restyle
+            document.getElementById('saveProps').addEventListener('click', () => {
+                if (!selectedFeature) { alert('Select a route first'); return; }
+                const p = selectedFeature.properties = selectedFeature.properties || {};
+                p.busname = document.getElementById('p_busname').value;
+                p.id = document.getElementById('p_id').value;
+                p.hub_id = document.getElementById('p_hub').value;
+                p.color_path = document.getElementById('p_color').value;
+                p.line_thik = document.getElementById('p_thick').value;
+                p.service_type = document.getElementById('p_service').value;
+                p.desci = document.getElementById('p_desc').value;
+
+                // update associated layers' style
+                for (const [layer, idx] of layerToFeatureId.entries()) {
+                    if (geojsonData.features[idx] === selectedFeature) {
+                        layer.setStyle && layer.setStyle(styleForFeature(p));
+                    }
+                }
+                rebuildLayersList();
+                alert('Properties saved (in memory). Use "Download edited GeoJSON" to save to disk.');
+            });
+
+            document.getElementById('clearSelection').addEventListener('click', () => {
+                if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: null });
+                selectedLayer = null; selectedFeature = null;
+                document.getElementById('propsForm').reset();
+            });
+
+            // handle edit events from Leaflet.Draw
+            map.on(L.Draw.Event.CREATED, function (e) {
+                const layer = e.layer;
+                editableFG.addLayer(layer);
+                // create a new Feature, push to geojsonData
+                const gj = layer.toGeoJSON();
+                // ensure properties exists
+                gj.properties = gj.properties || {};
+                // give a temporary id if none
+                gj.properties.id = gj.properties.id || ('new-' + Date.now());
+                geojsonData = geojsonData || { type: 'FeatureCollection', features: [] };
+                geojsonData.features.push(gj);
+                const newIndex = geojsonData.features.length - 1;
+                // associate the actual L layer (or its children) with index
+                layerToFeatureId.set(layer, newIndex);
+                // wire click
+                layer.on('click', () => selectLayer(layer, newIndex));
+                rebuildLayersList();
+            });
+
+            map.on(L.Draw.Event.EDITED, function (e) {
+                const layers = e.layers;
+                layers.eachLayer(function (layer) {
+                    const idx = layerToFeatureId.get(layer);
+                    if (typeof idx === 'number') {
+                        // update geometry in geojsonData.features[idx]
+                        geojsonData.features[idx].geometry = layer.toGeoJSON().geometry;
+                    } else {
+                        // sometimes drawn shapes are groups; try to match by geometry
+                        // fallback: try to locate by coords (not robust)
+                    }
+                });
+                alert('Edits applied to the in-memory GeoJSON.');
+            });
+
+            map.on(L.Draw.Event.DELETED, function (e) {
+                const layers = e.layers;
+                layers.eachLayer(function (layer) {
+                    const idx = layerToFeatureId.get(layer);
+                    if (typeof idx === 'number') {
+                        // remove feature at idx — careful to keep indices consistent:
+                        // we'll mark that feature as null and then filter when saving
+                        geojsonData.features[idx] = null;
+                        layerToFeatureId.delete(layer);
+                    } else {
+                        layerToFeatureId.delete(layer);
+                    }
+                });
+                // remove nulls and rebuild mapping: rebuild from scratch by serializing map
+                // Recreate features from editableFG's layers:
+                const features = [];
+                layerToFeatureId.clear();
+                let idCounter = 0;
+                editableFG.eachLayer(function (l) {
+                    const f = l.toGeoJSON();
+                    f.properties = f.properties || {};
+                    // try carry over previous props if possible (not guaranteed)
+                    features.push(f);
+                    layerToFeatureId.set(l, idCounter++);
+                    // attach click
+                    l.on('click', () => selectLayer(l, layerToFeatureId.get(l)));
+                });
+                geojsonData.features = features;
+                rebuildLayersList();
+                alert('Deleted selected shapes. In-memory data updated.');
+            });
+
+            // Download edited GeoJSON
+            document.getElementById('downloadBtn').addEventListener('click', () => {
+                if (!geojsonData) { alert('Nothing to download'); return; }
+                // remove any nulls
+                geojsonData.features = geojsonData.features.filter(f => f !== null && f !== undefined);
+                const blob = new Blob([JSON.stringify(geojsonData, null, 2)], { type: 'application/json' });
+                const filename = 'BusRoutes_edited.geojson';
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = filename; document.body.appendChild(a);
+                a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+            });
+
+            // zoom all button
+            document.getElementById('zoomAll').addEventListener('click', () => {
+                const b = editableFG.getBounds();
+                if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                else alert('No features on the map yet.');
+            });
+
+            // file input loader
+            document.getElementById('fileInput').addEventListener('change', function (ev) {
+                const f = ev.target.files[0];
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const j = JSON.parse(e.target.result);
+                        setGeoJSON(j);
+                    } catch (err) { alert('Invalid JSON file'); }
+                };
+                reader.readAsText(f);
+            });
+
+            // attempt to fetch a local BusRoutes.json (works if served via HTTP next to this HTML)
+            await loadGeoJSONFromURL('BusRoutes.json');
+
+            // If fetch succeeded we now have data. Otherwise user can use file input.
+            // For convenience, if geojsonData exists, add each Leaflet layer's edit handler to propagate geometry changes to geojsonData:
+            // We already update on edit/create/delete events above.
+
+            // Optional: click on map to clear selection
+            map.on('click', function () { /* clicking empty space does nothing for now */ });
+
+        })();
+    </script>
+</body>
+
+</html>
