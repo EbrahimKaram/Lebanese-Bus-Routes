@@ -85,6 +85,12 @@
         #layersList::-webkit-scrollbar-track {
             background: transparent;
         }
+
+        /* Highlight selected layer item */
+        .layer-item.selected {
+            background-color: #d0e7ff;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -223,17 +229,23 @@
                 if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
             }
 
-            function rebuildLayersList() {
-                const dom = document.getElementById('layersList');
-                dom.innerHTML = '';
+            const layersList = document.getElementById('layersList');
+            const layersSearch = document.getElementById('layersSearch');
+            const toggleLayersBtn = document.getElementById('toggleLayersBtn');
+            const layersHeader = document.getElementById('layersHeader');
+
+            function rebuildLayersList(filteredIndices = null) {
+                layersList.innerHTML = '';
                 if (!geojsonData) return;
                 geojsonData.features.forEach((f, i) => {
+                    if (filteredIndices && !filteredIndices.includes(i)) return;
                     const el = document.createElement('div');
+                    el.className = 'layer-item';
                     el.style.padding = '6px 4px';
                     el.style.borderBottom = '1px solid #eee';
                     el.style.cursor = 'pointer';
                     el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
-                <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
+            <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
                     el.onclick = () => {
                         for (const [layer, idx] of layerToFeatureId.entries()) {
                             if (idx === i) {
@@ -243,8 +255,21 @@
                             }
                         }
                     };
-                    dom.appendChild(el);
+                    layersList.appendChild(el);
                 });
+                highlightLayerItem();
+            }
+
+            function highlightLayerItem() {
+                const items = layersList.querySelectorAll('.layer-item');
+                items.forEach(item => item.classList.remove('selected'));
+                if (!selectedFeature) return;
+                const selectedIndex = geojsonData.features.indexOf(selectedFeature);
+                if (selectedIndex === -1) return;
+                if (items[selectedIndex]) {
+                    items[selectedIndex].classList.add('selected');
+                    items[selectedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
             }
 
             function selectLayer(layer, featureIndex) {
@@ -259,6 +284,7 @@
                 } else {
                     document.getElementById('propsFields').innerHTML = '';
                 }
+                highlightLayerItem();
             }
 
             document.getElementById('saveProps').addEventListener('click', () => {
@@ -294,6 +320,7 @@
                 if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: null });
                 selectedLayer = null; selectedFeature = null;
                 document.getElementById('propsFields').innerHTML = '';
+                highlightLayerItem();
             });
 
             // Edit only selected path
@@ -375,36 +402,6 @@
                 })();
             } catch (e) {
                 console.warn('Auto fetch failed, please use file input (CORS/file://).', e);
-            }
-
-
-            const layersList = document.getElementById('layersList');
-            const layersSearch = document.getElementById('layersSearch');
-            const toggleLayersBtn = document.getElementById('toggleLayersBtn');
-            const layersHeader = document.getElementById('layersHeader');
-
-            function rebuildLayersList(filteredIndices = null) {
-                layersList.innerHTML = '';
-                if (!geojsonData) return;
-                geojsonData.features.forEach((f, i) => {
-                    if (filteredIndices && !filteredIndices.includes(i)) return;
-                    const el = document.createElement('div');
-                    el.style.padding = '6px 4px';
-                    el.style.borderBottom = '1px solid #eee';
-                    el.style.cursor = 'pointer';
-                    el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
-            <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
-                    el.onclick = () => {
-                        for (const [layer, idx] of layerToFeatureId.entries()) {
-                            if (idx === i) {
-                                map.fitBounds(layer.getBounds ? layer.getBounds() : L.latLngBounds(layer.getLatLngs()));
-                                selectLayer(layer, idx);
-                                break;
-                            }
-                        }
-                    };
-                    layersList.appendChild(el);
-                });
             }
 
             layersSearch.addEventListener('input', () => {
