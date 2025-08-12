@@ -124,12 +124,16 @@
         <form id="propsForm" onsubmit="return false;">
             <!-- Dynamic properties fields inserted here -->
             <div id="propsFields"></div>
-            <button type="button" id="saveProps">Save properties</button>
-            <button type="button" id="clearSelection">Clear selection</button>
-            <button type="button" id="editPath">Edit path</button>
-            <button type="button" id="savePath">Save path</button>
         </form>
 
+    </div>
+
+    <div id="propsButtons"
+        style="position: absolute; right: 8px; top: calc(8px + 80vh + 16px); width: 300px; z-index: 1000; background: rgba(255,255,255,0.95); padding: 8px; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,0.2); display: flex; gap: 8px; justify-content: space-between;">
+        <button type="button" id="saveProps" style="flex-grow: 1;">Save properties</button>
+        <button type="button" id="clearSelection" style="flex-grow: 1;">Clear selection</button>
+        <button type="button" id="editPath" style="flex-grow: 1;">Edit path</button>
+        <button type="button" id="savePath" style="flex-grow: 1;">Save path</button>
     </div>
 
     <script>
