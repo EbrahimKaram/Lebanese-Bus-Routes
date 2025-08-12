@@ -72,6 +72,19 @@
             font-size: 12px;
             color: #333;
         }
+
+        #layersList::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #layersList::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        #layersList::-webkit-scrollbar-track {
+            background: transparent;
+        }
     </style>
 </head>
 
@@ -98,8 +111,17 @@
         </form>
         <hr />
         <div>
-            <strong>Layers</strong>
-            <div id="layersList"></div>
+            <strong style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;"
+                id="layersHeader">
+                Layers
+                <button id="toggleLayersBtn" style="font-size:14px; padding:2px 6px;">−</button>
+            </strong>
+            <input type="search" id="layersSearch" placeholder="Search layers..."
+                style="width:100%; margin-top:4px; padding:4px; box-sizing:border-box;" />
+            <div id="layersList"
+                style="max-height: 250px; overflow-y: auto; margin-top:4px; border: 1px solid #ccc; border-radius: 4px; padding: 4px;">
+                <!-- Layer entries here -->
+            </div>
         </div>
     </div>
 
@@ -353,6 +375,69 @@
             } catch (e) {
                 console.warn('Auto fetch failed, please use file input (CORS/file://).', e);
             }
+
+
+            const layersList = document.getElementById('layersList');
+            const layersSearch = document.getElementById('layersSearch');
+            const toggleLayersBtn = document.getElementById('toggleLayersBtn');
+            const layersHeader = document.getElementById('layersHeader');
+
+            function rebuildLayersList(filteredIndices = null) {
+                layersList.innerHTML = '';
+                if (!geojsonData) return;
+                geojsonData.features.forEach((f, i) => {
+                    if (filteredIndices && !filteredIndices.includes(i)) return;
+                    const el = document.createElement('div');
+                    el.style.padding = '6px 4px';
+                    el.style.borderBottom = '1px solid #eee';
+                    el.style.cursor = 'pointer';
+                    el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
+            <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
+                    el.onclick = () => {
+                        for (const [layer, idx] of layerToFeatureId.entries()) {
+                            if (idx === i) {
+                                map.fitBounds(layer.getBounds ? layer.getBounds() : L.latLngBounds(layer.getLatLngs()));
+                                selectLayer(layer, idx);
+                                break;
+                            }
+                        }
+                    };
+                    layersList.appendChild(el);
+                });
+            }
+
+            layersSearch.addEventListener('input', () => {
+                const query = layersSearch.value.trim().toLowerCase();
+                if (!geojsonData) return;
+                if (!query) {
+                    rebuildLayersList();
+                    return;
+                }
+                const filtered = geojsonData.features
+                    .map((f, i) => ({ f, i }))
+                    .filter(({ f }) => {
+                        const bname = (f.properties && f.properties.busname || '').toLowerCase();
+                        const id = (f.properties && ('' + f.properties.id) || '').toLowerCase();
+                        return bname.includes(query) || id.includes(query);
+                    })
+                    .map(({ i }) => i);
+                rebuildLayersList(filtered);
+            });
+
+            // Collapse / expand layers list
+            let layersCollapsed = false;
+            toggleLayersBtn.addEventListener('click', () => {
+                layersCollapsed = !layersCollapsed;
+                if (layersCollapsed) {
+                    layersList.style.display = 'none';
+                    layersSearch.style.display = 'none';
+                    toggleLayersBtn.textContent = '+';
+                } else {
+                    layersList.style.display = 'block';
+                    layersSearch.style.display = 'block';
+                    toggleLayersBtn.textContent = '−';
+                }
+            });
         })();
     </script>
 </body>
