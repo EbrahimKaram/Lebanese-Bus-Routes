@@ -56,5 +56,10 @@ Converting KMLs to GeoJSON
 https://mygeodata.cloud/converter/kmz-to-geojson
 
 
+Please note that google maps can only a certain amount of layers
+
+and it can only stylize a max of 20 per layer
+
+
 ### More contributions
 Feel free to suggest what to change in the instruction file. I'm also available for tweets on *@BahoKaram*. Also please feel Free to join the Facebook Group entitled **Facebook Developer Circle: Beirut**
