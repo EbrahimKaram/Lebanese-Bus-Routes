@@ -51,5 +51,10 @@ The algorithm was developed as an FYP by [Jad Chamoun](https://github.com/JadCha
 * [iOS app](https://github.com/JadCham/3alKhat-TransitApp)
 * [Web Panel](https://github.com/JadCham/Intelligent-Transit-Web-Panel)
 
+### Tools
+Converting KMLs to GeoJSON
+https://mygeodata.cloud/converter/kmz-to-geojson
+
+
 ### More contributions
 Feel free to suggest what to change in the instruction file. I'm also available for tweets on *@BahoKaram*. Also please feel Free to join the Facebook Group entitled **Facebook Developer Circle: Beirut**
