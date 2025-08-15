@@ -25,6 +25,13 @@ If you want to contribute to the map, please check the [following document](http
 
 I would highly suggest you check the http://busmap.me/ project maintained by the Bus Map Project.
 
+## Navigation
+https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/
+
+This was made with flutter app and shows the possible paths between two spots and what you can.
+
+please note that the time hours are just estimates
+
 ## Bus Map Me
 
 Bus map me has been so far the most consistent route developer
