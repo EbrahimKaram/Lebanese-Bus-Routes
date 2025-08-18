@@ -38,7 +38,7 @@ please note that the time hours are just estimates and don't take into account t
 There will an option to create an account with us for better performance
 
 This would be the site to delete your account
-[https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/]([https://https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/)
+[https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/](https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/)
 
 ## Bus Map Me
 
