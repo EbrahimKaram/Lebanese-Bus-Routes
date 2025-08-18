@@ -34,6 +34,12 @@ This was made with flutter app and shows the possible paths between two spots an
 
 please note that the time hours are just estimates and don't take into account traffic
 
+
+There will an option to create an account with us for better performance
+
+This would be the site to delete your account
+[https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/]([https://https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/delete/)
+
 ## Bus Map Me
 
 Bus map me has been so far the most consistent route developer
