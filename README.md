@@ -28,11 +28,11 @@ I would highly suggest you check the http://busmap.me/ project maintained by the
 ## Navigation
 [https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/](https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/)
 
-If you would like to read the privacy policy it would be [here]([https://](https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/)) 
+If you would like to read the privacy policy it would be [here](https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/privacyPolicy.html) 
 
 This was made with flutter app and shows the possible paths between two spots and what you can.
 
-please note that the time hours are just estimates and don't take into account traffic
+please note that the time hours are just estimates and don't take into account traffic or a bus schedule by any margin
 
 
 There will an option to create an account with us for better performance
