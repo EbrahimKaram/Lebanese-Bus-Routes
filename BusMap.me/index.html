@@ -246,6 +246,7 @@
             let selectedFeature = null;
             let layerToFeatureId = new Map();
             let currentEditor = null;
+            let markerHighlight = null;
 
             function styleForFeature(props) {
                 let col = props && (props.color_path || props.color || '#3388ff');
@@ -366,7 +367,24 @@
                     el.onclick = () => {
                         for (const [layer, idx] of layerToFeatureId.entries()) {
                             if (idx === i) {
-                                map.fitBounds(layer.getBounds ? layer.getBounds() : L.latLngBounds(layer.getLatLngs()));
+                                try {
+                                    // Polylines and feature groups provide getBounds
+                                    if (layer.getBounds) {
+                                        const b = layer.getBounds();
+                                        if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                                    }
+                                    // Polylines may expose getLatLngs
+                                    else if (layer.getLatLngs) {
+                                        const b = L.latLngBounds(layer.getLatLngs());
+                                        if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                                    }
+                                    // Markers expose getLatLng
+                                    else if (layer.getLatLng) {
+                                        map.setView(layer.getLatLng(), 15);
+                                    }
+                                } catch (err) {
+                                    console.warn('Failed to zoom to layer', err);
+                                }
                                 selectLayer(layer, idx);
                                 break;
                             }
@@ -393,6 +411,9 @@
                 if (selectedLayer) {
                     selectedLayer.setStyle && selectedLayer.setStyle({ dashArray: null });
                 }
+                // clear previous marker highlight/popups
+                if (markerHighlight) { map.removeLayer(markerHighlight); markerHighlight = null; }
+                if (selectedLayer && selectedLayer.closePopup) selectedLayer.closePopup && selectedLayer.closePopup();
                 selectedLayer = layer;
                 selectedFeature = geojsonData && geojsonData.features[featureIndex];
                 if (selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: '4 6' });
@@ -401,6 +422,15 @@
                 } else {
                     document.getElementById('propsFields').innerHTML = '';
                 }
+                // If this is a marker, open a popup and add a subtle highlight circle
+                try {
+                    if (selectedLayer.getLatLng) {
+                        const ll = selectedLayer.getLatLng();
+                        const name = (selectedFeature && selectedFeature.properties && (selectedFeature.properties.name || selectedFeature.properties.busname)) || '';
+                        if (name) selectedLayer.bindPopup(name).openPopup();
+                        markerHighlight = L.circle(ll, { radius: 30, color: '#ff5500', weight: 2, opacity: 0.6, fill: false }).addTo(map);
+                    }
+                } catch (e) { /* ignore */ }
                 highlightLayerItem();
             }
 
