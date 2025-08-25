@@ -25,11 +25,61 @@
             z-index: 1000;
             left: 8px;
             bottom: 8px;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.98);
             padding: 8px;
-            border-radius: 6px;
-            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
             font-family: Arial, sans-serif;
+            min-width: 320px;
+        }
+        /* Topbar layout */
+        #topbar .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        #topbar .group { display:flex; gap:8px; align-items:center; }
+        #topbar .group.left { flex: 1 1 auto; }
+        #topbar .group.center { flex: 0 0 auto; }
+        #topbar .group.right { flex: 0 0 auto; }
+
+        /* Buttons */
+        .top-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        .top-btn:active { transform: translateY(1px); }
+
+        /* File input styled as button */
+        .file-input-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .file-input-label .file-text { color: #333; }
+        .file-input-label input[type=file] { display: none; }
+
+    /* Toggle */
+    .toggle-label { display:inline-flex; align-items:center; gap:8px; font-size:13px; line-height:1; cursor:pointer; user-select:none; }
+    .toggle-label input[type=checkbox] { width:16px; height:16px; margin:0; padding:0; vertical-align:middle; accent-color:#1976d2; -webkit-appearance:checkbox; appearance:checkbox; }
+
+        @media (max-width:520px) {
+            #topbar { min-width: auto; width: calc(100% - 16px); left:8px; right:8px; }
+            #topbar .group.left { flex-basis: 100%; }
         }
 
         #props {
@@ -86,6 +136,16 @@
             background: transparent;
         }
 
+        /* Label style for permanent marker tooltips */
+        .bus-label {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 3px;
+            padding: 2px 6px;
+            color: #111;
+            font-size: 12px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+        }
+
         /* Highlight selected layer item */
         .layer-item.selected {
             background-color: #d0e7ff;
@@ -107,10 +167,21 @@
     <div id="map"></div>
 
     <div id="topbar">
-        <div style="display:flex; gap:6px; align-items:center;">
-            <input id="fileInput" type="file" accept=".json,.geojson" />
-            <button id="downloadBtn">Download edited GeoJSON</button>
-            <button id="zoomAll">Zoom to routes</button>
+        <div class="controls">
+            <div class="group left">
+                <label class="file-input-label" for="fileInput">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="file-text">Load GeoJSON</span>
+                    <input id="fileInput" type="file" accept=".json,.geojson" />
+                </label>
+                <button id="downloadBtn" class="top-btn">Download</button>
+            </div>
+            <div class="group center">
+                <button id="zoomAll" class="top-btn">Zoom</button>
+            </div>
+            <div class="group right">
+                <label class="toggle-label"><input id="toggleStops" type="checkbox" checked /> Show bus stops</label>
+            </div>
         </div>
     </div>
 
@@ -153,6 +224,8 @@
             }).addTo(map);
 
             const editableFG = new L.FeatureGroup().addTo(map);
+            // Separate feature group for point markers (bus stops) so we can toggle them independently
+            const busStopsLayer = new L.FeatureGroup().addTo(map);
 
             // Only allow drawing of new polylines
             const drawControl = new L.Control.Draw({
@@ -228,18 +301,48 @@
                 if (!j || !j.features) return;
 
                 j.features.forEach((feat, idx) => {
-                    if (feat.geometry && feat.geometry.type === "LineString") {
+                    if (!feat || !feat.geometry) return;
+                    if (feat.geometry.type === "LineString") {
                         const coords = feat.geometry.coordinates.map(c => [c[1], c[0]]);
                         const layer = L.polyline(coords, styleForFeature(feat.properties || {}));
                         editableFG.addLayer(layer);
                         layerToFeatureId.set(layer, idx);
                         layer.on('click', () => selectLayer(layer, idx));
                     }
+                    else if (feat.geometry.type === "Point") {
+                        let c = feat.geometry.coordinates; // [lon, lat]
+                        // fallback: some features store lat/lon in properties (Lattitude/Longitude)
+                        if ((!Array.isArray(c) || c.length < 2) && feat.properties) {
+                            const latProp = feat.properties.Lattitude || feat.properties.latitude || feat.properties.lat;
+                            const lonProp = feat.properties.Longitude || feat.properties.longitude || feat.properties.lon;
+                            const lat = latProp ? parseFloat(latProp) : NaN;
+                            const lon = lonProp ? parseFloat(lonProp) : NaN;
+                            if (!isNaN(lat) && !isNaN(lon)) {
+                                c = [lon, lat];
+                            }
+                        }
+                        if (Array.isArray(c) && c.length >= 2) {
+                            const latlng = [c[1], c[0]];
+                            const marker = L.marker(latlng);
+                            // permanent tooltip used as label; prefers properties.name
+                            const label = (feat.properties && (feat.properties.name || feat.properties.busname || feat.properties.description)) || '';
+                            // if (label) marker.bindTooltip(label, { permanent: true, direction: 'right', className: 'bus-label' });
+                            // add marker to the separate bus stops layer
+                            busStopsLayer.addLayer(marker);
+                            layerToFeatureId.set(marker, idx);
+                            marker.on('click', () => selectLayer(marker, idx));
+                        }
+                    }
                 });
 
                 rebuildLayersList();
-                const bounds = editableFG.getBounds();
-                if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+                // Fit to both polylines and bus stop markers
+                const combinedBounds = L.latLngBounds();
+                const b1 = editableFG.getBounds();
+                if (b1.isValid()) combinedBounds.extend(b1);
+                const b2 = busStopsLayer.getBounds();
+                if (b2.isValid()) combinedBounds.extend(b2);
+                if (combinedBounds.isValid()) map.fitBounds(combinedBounds, { padding: [20, 20] });
             }
 
             const layersList = document.getElementById('layersList');
@@ -257,8 +360,9 @@
                     el.style.padding = '6px 4px';
                     el.style.borderBottom = '1px solid #eee';
                     el.style.cursor = 'pointer';
-                    el.innerHTML = `<strong>${(f.properties && f.properties.busname) || ('feature ' + i)}</strong>
-            <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
+                    const title = (f.properties && (f.properties.name || f.properties.busname)) || ('feature ' + i);
+                    el.innerHTML = `<strong>${title}</strong>
+        <div class="small">id: ${(f.properties && f.properties.id) || ''}</div>`;
                     el.onclick = () => {
                         for (const [layer, idx] of layerToFeatureId.entries()) {
                             if (idx === i) {
@@ -388,8 +492,16 @@
             });
 
             document.getElementById('zoomAll').addEventListener('click', () => {
-                const b = editableFG.getBounds();
-                if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                const combinedBounds = L.latLngBounds();
+                const b1 = editableFG.getBounds();
+                if (b1.isValid()) combinedBounds.extend(b1);
+                // include stops only if visible
+                const stopsVisible = document.getElementById('toggleStops').checked;
+                if (stopsVisible) {
+                    const b2 = busStopsLayer.getBounds();
+                    if (b2.isValid()) combinedBounds.extend(b2);
+                }
+                if (combinedBounds.isValid()) map.fitBounds(combinedBounds, { padding: [20, 20] });
                 else alert('No features on the map yet.');
             });
 
@@ -416,6 +528,13 @@
             } catch (e) {
                 console.warn('Auto fetch failed, please use file input (CORS/file://).', e);
             }
+
+            // Toggle handler to show/hide bus stops
+            document.getElementById('toggleStops').addEventListener('change', (ev) => {
+                const checked = ev.target.checked;
+                if (checked) map.addLayer(busStopsLayer);
+                else map.removeLayer(busStopsLayer);
+            });
 
             layersSearch.addEventListener('input', () => {
                 const query = layersSearch.value.trim().toLowerCase();
