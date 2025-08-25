@@ -354,8 +354,12 @@
             function rebuildLayersList(filteredIndices = null) {
                 layersList.innerHTML = '';
                 if (!geojsonData) return;
+                const stopsVisible = document.getElementById('toggleStops') && document.getElementById('toggleStops').checked;
                 geojsonData.features.forEach((f, i) => {
+                    // apply search/filter mask first
                     if (filteredIndices && !filteredIndices.includes(i)) return;
+                    // if stops are hidden, skip Point features
+                    if (!stopsVisible && f && f.geometry && f.geometry.type === 'Point') return;
                     const el = document.createElement('div');
                     el.className = 'layer-item';
                     el.style.padding = '6px 4px';
@@ -564,6 +568,17 @@
                 const checked = ev.target.checked;
                 if (checked) map.addLayer(busStopsLayer);
                 else map.removeLayer(busStopsLayer);
+                // rebuild layer list to hide/show point features
+                rebuildLayersList();
+                // if selected feature is a Point and now hidden, clear selection
+                try {
+                    if (selectedFeature && selectedFeature.geometry && selectedFeature.geometry.type === 'Point' && !checked) {
+                        if (selectedLayer && selectedLayer.setStyle) selectedLayer.setStyle({ dashArray: null });
+                        selectedLayer = null; selectedFeature = null;
+                        document.getElementById('propsFields').innerHTML = '';
+                        highlightLayerItem();
+                    }
+                } catch (e) { }
             });
 
             layersSearch.addEventListener('input', () => {
