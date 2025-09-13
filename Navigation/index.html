@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -19,8 +20,10 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <!-- Primary Meta -->
-  <meta name="description" content="Lebanon Transit – interactive Lebanese bus routes map with walking links, multi‑transfer planning, stop proximity search and real-time friendly UI for navigating public transportation across Lebanon.">
-  <meta name="keywords" content="Lebanon bus routes, Lebanese public transport, Beirut buses, transit map Lebanon, bus planner Lebanon, Lebanon Transit app">
+  <meta name="description"
+    content="Lebanon Transit – interactive Lebanese bus routes map with walking links, multi‑transfer planning, stop proximity search and real-time friendly UI for navigating public transportation across Lebanon.">
+  <meta name="keywords"
+    content="Lebanon bus routes, Lebanese public transport, Beirut buses, transit map Lebanon, bus planner Lebanon, Lebanon Transit app">
   <meta name="author" content="Lebanon Transit">
   <meta name="robots" content="index,follow">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -34,48 +37,145 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>Lebanon Transit – Lebanese Bus Routes Planner</title>
-  <link rel="canonical" href="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/"> <!-- TODO: replace with full production URL e.g. https://your-domain.example/ -->
+  <link rel="canonical" href="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/">
+  <!-- TODO: replace with full production URL e.g. https://your-domain.example/ -->
 
   <!-- Open Graph / Facebook -->
   <meta property="og:title" content="Lebanon Transit – Lebanese Bus Routes Planner">
-  <meta property="og:description" content="Plan Lebanese bus trips with walking segments, transfers, and clickable coordinate links. Explore Beirut and beyond by public transport.">
+  <meta property="og:description"
+    content="Plan Lebanese bus trips with walking segments, transfers, and clickable coordinate links. Explore Beirut and beyond by public transport.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/">
-  <meta property="og:image" content="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/assets/assets/images/BusLebanonHigherQuality.png"> <!-- Prefer absolute URL in production -->
+  <meta property="og:image"
+    content="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/assets/assets/images/BusLebanonHigherQuality.png">
+  <!-- Prefer absolute URL in production -->
   <meta property="og:locale" content="en_US">
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Lebanon Transit – Lebanese Bus Routes Planner">
   <meta name="twitter:description" content="Interactive Lebanese bus map with smart routing & transfers.">
-    <meta name="twitter:image" content="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/assets/assets/images/BusLebanonHigherQuality.png"> <!-- Replace with absolute URL when deployed -->
+  <meta name="twitter:image"
+    content="https://www.ebrahimkaram.com/Lebanese-Bus-Routes/Navigation/assets/assets/images/BusLebanonHigherQuality.png">
+  <!-- Replace with absolute URL when deployed -->
+
+  <!-- Google Analytics (GA4) -->
+  <!-- Replace G-XXXXXXXXXX with your real Measurement ID. Script avoids loading on localhost / 127.* -->
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-3CS9SDNH6B"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-3CS9SDNH6B');
+  </script>
+  <!-- End Google Analytics -->
 
   <!-- Performance Hints -->
   <link rel="preconnect" href="https://api.maptiler.com" crossorigin>
   <link rel="dns-prefetch" href="https://api.maptiler.com">
   <link rel="manifest" href="manifest.json">
   <!-- Preload high-res logo used in the splash loader -->
-    <link rel="preload" as="image" href="assets/assets/images/BusLebanonHigherQuality.png" />
+  <link rel="preload" as="image" href="assets/assets/images/BusLebanonHigherQuality.png" />
   <style>
-    html,body {height:100%; margin:0; font-family: system-ui, Arial, sans-serif; background:#111827; color:#fff;}
-    #app-loader {position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; z-index:9999; background:radial-gradient(circle at 40% 35%, #1f2d4d, #0d1320);} 
-    #app-loader.fade {opacity:0; transition:opacity .35s ease;}
-    .loader-logo {display:flex; flex-direction:column; align-items:center; gap:10px;}
-  .loader-logo img {width:140px; max-width:50vw; height:auto; filter:drop-shadow(0 4px 10px rgba(0,0,0,.55)); image-rendering:auto;}
-    .loader-title {font-size:20px; font-weight:600; letter-spacing:.5px;}
-    .spinner {width:54px; height:54px; border:5px solid rgba(255,255,255,.18); border-top-color:#4f46e5; border-radius:50%; animation:spin 1.1s linear infinite;}
-    @keyframes spin {to {transform:rotate(360deg)}}
-    .loader-sub {font-size:13px; opacity:.7;}
-    @media (prefers-color-scheme: light) { html,body{background:#f5f7fa; color:#111}; #app-loader{background:radial-gradient(circle at 40% 35%, #ffffff, #e5e9f2);} .spinner{border:5px solid rgba(0,0,0,.12); border-top-color:#4f46e5;} }
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: #111827;
+      color: #fff;
+    }
+
+    #app-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      z-index: 9999;
+      background: radial-gradient(circle at 40% 35%, #1f2d4d, #0d1320);
+    }
+
+    #app-loader.fade {
+      opacity: 0;
+      transition: opacity .35s ease;
+    }
+
+    .loader-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .loader-logo img {
+      width: 140px;
+      max-width: 50vw;
+      height: auto;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .55));
+      image-rendering: auto;
+    }
+
+    .loader-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: .5px;
+    }
+
+    .spinner {
+      width: 54px;
+      height: 54px;
+      border: 5px solid rgba(255, 255, 255, .18);
+      border-top-color: #4f46e5;
+      border-radius: 50%;
+      animation: spin 1.1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .loader-sub {
+      font-size: 13px;
+      opacity: .7;
+    }
+
+    @media (prefers-color-scheme: light) {
+
+      html,
+      body {
+        background: #f5f7fa;
+        color: #111
+      }
+
+      ;
+
+      #app-loader {
+        background: radial-gradient(circle at 40% 35%, #ffffff, #e5e9f2);
+      }
+
+      .spinner {
+        border: 5px solid rgba(0, 0, 0, .12);
+        border-top-color: #4f46e5;
+      }
+    }
   </style>
 </head>
+
 <body>
   <div id="app-loader" role="status" aria-label="Loading application">
     <div class="loader-logo">
-  <img src="assets/assets/images/BusLebanonHigherQuality.png" alt="Lebanon Transit Logo" loading="eager" decoding="async" onerror="this.onerror=null;this.src='favicon.png';" />
+      <img src="assets/assets/images/BusLebanonHigherQuality.png" alt="Lebanon Transit Logo" loading="eager"
+        decoding="async" onerror="this.onerror=null;this.src='favicon.png';" />
       <div class="loader-title">Lebanon Transit</div>
       <div class="loader-sub">Loading map & routes…</div>
     </div>
@@ -87,7 +187,7 @@
       const el = document.getElementById('app-loader');
       if (el) {
         el.classList.add('fade');
-        setTimeout(()=> el.remove(), 450);
+        setTimeout(() => el.remove(), 450);
       }
     });
   </script>
@@ -107,4 +207,5 @@
   }
   </script>
 </body>
+
 </html>

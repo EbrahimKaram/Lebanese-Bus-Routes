@@ -4,6 +4,19 @@
 <head>
     <meta charset="utf-8" />
     <title>Lebanon Bus Routes — Viewer & Editor</title>
+
+    <!-- Google Analytics (GA4) -->
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3CS9SDNH6B"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-3CS9SDNH6B');
+    </script>
+    <!-- End Google Analytics -->
+
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -32,6 +45,7 @@
             font-family: Arial, sans-serif;
             min-width: 320px;
         }
+
         /* Topbar layout */
         #topbar .controls {
             display: flex;
@@ -40,10 +54,24 @@
             justify-content: space-between;
             flex-wrap: wrap;
         }
-        #topbar .group { display:flex; gap:8px; align-items:center; }
-        #topbar .group.left { flex: 1 1 auto; }
-        #topbar .group.center { flex: 0 0 auto; }
-        #topbar .group.right { flex: 0 0 auto; }
+
+        #topbar .group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        #topbar .group.left {
+            flex: 1 1 auto;
+        }
+
+        #topbar .group.center {
+            flex: 0 0 auto;
+        }
+
+        #topbar .group.right {
+            flex: 0 0 auto;
+        }
 
         /* Buttons */
         .top-btn {
@@ -54,9 +82,12 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 13px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
         }
-        .top-btn:active { transform: translateY(1px); }
+
+        .top-btn:active {
+            transform: translateY(1px);
+        }
 
         /* File input styled as button */
         .file-input-label {
@@ -70,16 +101,48 @@
             cursor: pointer;
             font-size: 13px;
         }
-        .file-input-label .file-text { color: #333; }
-        .file-input-label input[type=file] { display: none; }
 
-    /* Toggle */
-    .toggle-label { display:inline-flex; align-items:center; gap:8px; font-size:13px; line-height:1; cursor:pointer; user-select:none; }
-    .toggle-label input[type=checkbox] { width:16px; height:16px; margin:0; padding:0; vertical-align:middle; accent-color:#1976d2; -webkit-appearance:checkbox; appearance:checkbox; }
+        .file-input-label .file-text {
+            color: #333;
+        }
+
+        .file-input-label input[type=file] {
+            display: none;
+        }
+
+        /* Toggle */
+        .toggle-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            line-height: 1;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-label input[type=checkbox] {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            padding: 0;
+            vertical-align: middle;
+            accent-color: #1976d2;
+            -webkit-appearance: checkbox;
+            appearance: checkbox;
+        }
 
         @media (max-width:520px) {
-            #topbar { min-width: auto; width: calc(100% - 16px); left:8px; right:8px; }
-            #topbar .group.left { flex-basis: 100%; }
+            #topbar {
+                min-width: auto;
+                width: calc(100% - 16px);
+                left: 8px;
+                right: 8px;
+            }
+
+            #topbar .group.left {
+                flex-basis: 100%;
+            }
         }
 
         #props {
@@ -170,7 +233,12 @@
         <div class="controls">
             <div class="group left">
                 <label class="file-input-label" for="fileInput">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#1976d2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 3v10" stroke="#1976d2" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#1976d2" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
                     <span class="file-text">Load GeoJSON</span>
                     <input id="fileInput" type="file" accept=".json,.geojson" />
                 </label>
